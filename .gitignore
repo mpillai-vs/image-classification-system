@@ -1,0 +1,14 @@
+# Dataset files (too large for GitHub, download separately)
+data/
+
+# Jupyter checkpoints
+.ipynb_checkpoints/
+
+# Internal Claude files
+.claude/
+.remember/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
