@@ -5,7 +5,7 @@ import timm
 import torch.nn as nn
 import torch.optim as optim
 from torchvision import datasets, transforms
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, random_split
 from tqdm import tqdm
 import time
 
@@ -26,6 +26,7 @@ BATCH_SIZE = 64
 IMG_SIZE   = 224
 MEAN       = [0.5071, 0.4867, 0.4408]
 STD        = [0.2675, 0.2565, 0.2761]
+VAL_SPLIT  = 0.1  # 10% of train data used for validation
 
 # ── Transforms ────────────────────────────────────────────────────
 train_transform = transforms.Compose([
@@ -37,21 +38,30 @@ train_transform = transforms.Compose([
     transforms.Normalize(MEAN, STD)
 ])
 
-test_transform = transforms.Compose([
+val_transform = transforms.Compose([
     transforms.Resize((IMG_SIZE, IMG_SIZE)),
     transforms.ToTensor(),
     transforms.Normalize(MEAN, STD)
 ])
 
-# ── Data ──────────────────────────────────────────────────────────
-train_dataset = datasets.CIFAR100("./data", train=True,
-                                   transform=train_transform, download=True)
-test_dataset  = datasets.CIFAR100("./data", train=False,
-                                   transform=test_transform,  download=True)
-train_loader  = DataLoader(train_dataset, batch_size=BATCH_SIZE,
-                           shuffle=True,  num_workers=0, pin_memory=False)
-test_loader   = DataLoader(test_dataset,  batch_size=128,
-                           shuffle=False, num_workers=0, pin_memory=False)
+# ── Data — train split only, no test set touched ──────────────────
+full_train = datasets.CIFAR100("./data", train=True,
+                                transform=train_transform, download=True)
+
+val_size   = int(len(full_train) * VAL_SPLIT)   # 5,000 images
+train_size = len(full_train) - val_size          # 45,000 images
+train_subset, val_subset = random_split(
+    full_train, [train_size, val_size],
+    generator=torch.Generator().manual_seed(42)
+)
+# Apply val transform to validation subset without affecting the train subset
+val_subset.dataset = datasets.CIFAR100("./data", train=True,
+                                        transform=val_transform, download=False)
+
+train_loader = DataLoader(train_subset, batch_size=BATCH_SIZE,
+                          shuffle=True,  num_workers=0, pin_memory=False)
+val_loader   = DataLoader(val_subset,   batch_size=128,
+                          shuffle=False, num_workers=0, pin_memory=False)
 
 # ── Model ─────────────────────────────────────────────────────────
 model = timm.create_model("efficientnet_b0", pretrained=True, num_classes=100)
@@ -89,20 +99,20 @@ def evaluate(model, loader, device):
     return 100. * correct / total
 
 # ── Train ─────────────────────────────────────────────────────────
-best_accuracy = 0.0
+best_val_accuracy = 0.0
 for epoch in range(1, EPOCHS + 1):
     train_loss, train_acc = train_one_epoch(
         model, train_loader, optimizer, criterion, DEVICE)
-    test_acc = evaluate(model, test_loader, DEVICE)
+    val_acc = evaluate(model, val_loader, DEVICE)
     scheduler.step()
 
-    if test_acc > best_accuracy:
-        best_accuracy = test_acc
+    if val_acc > best_val_accuracy:
+        best_val_accuracy = val_acc
         torch.save(model.state_dict(), "best_model.pth")
 
     print(f"Epoch [{epoch:02d}/{EPOCHS}] "
           f"Loss: {train_loss:.3f} | "
           f"Train: {train_acc:.1f}% | "
-          f"Test: {test_acc:.1f}%")
+          f"Val: {val_acc:.1f}%")
 
-print(f"Done! Best accuracy: {best_accuracy:.2f}%")
+print(f"Done! Best val accuracy: {best_val_accuracy:.2f}%")
