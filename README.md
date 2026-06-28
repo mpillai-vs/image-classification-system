@@ -18,10 +18,15 @@ python infer.py
 ```
 
 ## Results
-- Model        : EfficientNet-B0
-- Parameters   : 5,288,548
-- Top-1 Accuracy: ~76%
-- Contest Score : Accuracy / Parameters
+
+| Metric            | Value          |
+|-------------------|----------------|
+| Model             | EfficientNet-B0 |
+| Total Parameters  | 4,135,648      |
+| Top-1 Accuracy    | 85.44%         |
+| Contest Score     | 0.0000206594   |
+
+> Contest Score = Top-1 Accuracy / Total Parameters
 
 ## Notes
 - Trained on CIFAR-100 train set only (50,000 images)
