@@ -37,22 +37,32 @@ model.eval()
 print("✅ Model loaded from best_model.pth")
 
 # ── Evaluate ──────────────────────────────────────────────────────
-correct, total = 0, 0
+correct_top1, correct_top5, total = 0, 0, 0
 with torch.no_grad():
     for images, labels in tqdm(test_loader, desc="Evaluating"):
         images, labels = images.to(DEVICE), labels.to(DEVICE)
-        _, predicted   = model(images).max(1)
-        total         += labels.size(0)
-        correct       += predicted.eq(labels).sum().item()
+        outputs        = model(images)
+
+        # Top-1: highest scoring class matches label
+        _, pred_top1   = outputs.max(1)
+        correct_top1  += pred_top1.eq(labels).sum().item()
+
+        # Top-5: true label is among the 5 highest scoring classes
+        _, pred_top5   = outputs.topk(5, dim=1)
+        correct_top5  += pred_top5.eq(labels.view(-1, 1)).any(dim=1).sum().item()
+
+        total += labels.size(0)
 
 # ── Score ─────────────────────────────────────────────────────────
-accuracy     = 100. * correct / total
+top1_acc     = 100. * correct_top1 / total
+top5_acc     = 100. * correct_top5 / total
 total_params = sum(p.numel() for p in model.parameters())
-score        = accuracy / total_params
+score        = top1_acc / total_params
 
 print()
 print("=" * 50)
-print(f"  Top-1 Accuracy   : {accuracy:.2f}%")
+print(f"  Top-1 Accuracy   : {top1_acc:.2f}%")
+print(f"  Top-5 Accuracy   : {top5_acc:.2f}%")
 print(f"  Total Parameters : {total_params:,}")
 print(f"  Contest Score    : {score:.10f}")
 print("=" * 50)
